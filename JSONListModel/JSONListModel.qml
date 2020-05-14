@@ -4,7 +4,7 @@
  * Licensed under the MIT licence (http://opensource.org/licenses/mit-license.php)
  */
 
-import QtQuick 2.0
+import QtQuick 1.0
 import "jsonpath.js" as JSONPath
 
 Item {
@@ -12,6 +12,7 @@ Item {
     property string json: ""
     property string query: ""
     property string propId: "" // If this property is defined (unique identifier of each object) we'll update only the changes without destroying everything
+    property string sortBy: ""
     
     property ListModel model : ListModel { id: jsonModel }
     property alias count: jsonModel.count
@@ -24,6 +25,7 @@ Item {
         var xhr = new XMLHttpRequest;
         xhr.open("GET", source);
         xhr.onreadystatechange = function() {
+			// @disable-check M126  // identity (===) vs equality (==)
             if (xhr.readyState == XMLHttpRequest.DONE)
                 json = xhr.responseText;
         }
@@ -44,6 +46,14 @@ Item {
         {
             jsonModel.clear();
             objectArray = parseJSONString(json, query);
+            // As of v0.8.5 (old!), JSONPath.jsonPath() returns false instead of [] if no objects match the query.
+            // It caused "qrc:/JSONListModel.qml:55: TypeError: Property 'sort' of object false is not a function".
+            if ( !objectArray ) {
+		jsonModel.clear();
+                return;
+            }
+            if ( sortBy !== "" )
+                objectArray = sortByKey(objectArray, sortBy);
             for (var key in objectArray ) {
                 jo = objectArray[key];
                 jsonModel.append(jo);
@@ -53,7 +63,25 @@ Item {
         {
             var i, j, id, found;
             objectArray = parseJSONString(json, query);
+            // As of v0.8.5 (old!), JSONPath.jsonPath() returns false instead of [] if no objects match the query.
+            // It caused "qrc:/JSONListModel.qml:55: TypeError: Property 'sort' of object false is not a function".
+            if ( !objectArray ) {
+                jsonModel.clear();
+                return;
+            }
+            if ( sortBy !== "" )
+                objectArray = sortByKey(objectArray, sortBy);
             var objectArrayAnt = parseJSONString(jsonAnt, query);
+            // As of v0.8.5 (old!), JSONPath.jsonPath() returns false instead of [] if no objects match the query.
+            // It caused "qrc:/JSONListModel.qml:55: TypeError: Property 'sort' of object false is not a function".
+            if ( !objectArrayAnt ) {
+                jsonModel.clear();
+                jsonAnt = "";
+                updateJSONModel();
+                return;
+            }
+            if ( sortBy !== "" )
+                objectArrayAnt = sortByKey(objectArrayAnt, sortBy);
 
             // Detect new and modified elements
             
@@ -115,5 +143,12 @@ Item {
             objectArray = JSONPath.jsonPath(objectArray, jsonPathQuery);
 
         return objectArray;
+    }
+	
+	function sortByKey(array, key) {
+        return array.sort(function(a, b) {
+            var x = a[key]; var y = b[key];
+            return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+        });
     }
 }
